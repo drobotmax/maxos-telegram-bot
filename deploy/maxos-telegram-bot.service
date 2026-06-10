@@ -1,0 +1,37 @@
+[Unit]
+Description=MaxOS Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=maxos
+Group=maxos
+WorkingDirectory=/home/maxos/maxos-telegram-bot
+ExecStart=/home/maxos/.local/bin/uv run python -m src.main
+Restart=always
+RestartSec=10
+
+# Environment
+EnvironmentFile=/home/maxos/maxos-telegram-bot/.env
+
+# Logging (journald)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=maxos-bot
+
+# Memory limits — prevent hard OOM kills on 1GB VPS
+# MemoryHigh=750M: kernel starts reclaiming memory at 750MB (soft limit, graceful)
+# MemoryMax=900M: hard ceiling, process gets SIGKILL above this (saves OS from freezing)
+MemoryHigh=750M
+MemoryMax=900M
+# Lower OOM priority — prefer killing Claude subprocess over the bot itself
+OOMScoreAdjust=-100
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ReadWritePaths=/home/maxos
+
+[Install]
+WantedBy=multi-user.target

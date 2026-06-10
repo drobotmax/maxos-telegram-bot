@@ -1,0 +1,20 @@
+# Secrets & personal data - never commit
+.env
+data/
+*.session
+*.db
+
+# Personal machine/infra glue (not part of the open-source release)
+com.maxos.telegram-bot.plist
+deploy/sync-to-vps.sh
+.claude/
+.sync-backup*/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# OS
+.DS_Store
