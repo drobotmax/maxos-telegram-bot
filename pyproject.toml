@@ -14,3 +14,10 @@ dependencies = [
     "httpx>=0.27.0",
     "telethon>=1.36",
 ]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
