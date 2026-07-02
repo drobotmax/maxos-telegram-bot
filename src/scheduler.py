@@ -165,8 +165,9 @@ async def _health_check():
         pass
 
     if issues:
+        # Log only – no admin broadcast. This infra alert carried no actionable
+        # value (WhatsApp/git status already surface in the SessionStart hook).
         logger.warning(f"Health issues: {issues}")
-        await _send_to_admin(f"⚠️ Infra: {' | '.join(issues)}")
     else:
         logger.info("Health check passed")
 
