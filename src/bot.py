@@ -82,6 +82,23 @@ async def _download_telegram_file(file_obj, bot) -> tuple[str | None, str | None
 _consecutive_network_errors: int = 0
 _MAX_BACKOFF_SEC: int = 60
 
+# A reply to a comment-digest block (from tg-comment-digest.py) is Maxim's final
+# comment text, NOT a query for the bot. The mac-side poller (tg-comment-poster.py)
+# reads those replies via the user session and posts them as comments. The bot must
+# NOT route them to Claude. Detection mirrors the poller: parent sent by the bot,
+# contains a "ЧЕРНОВИК" marker and a t.me/<ch>/<id> link.
+_COMMENT_LINK_RE = re.compile(r"https?://t\.me/[A-Za-z0-9_]+/\d+")
+
+
+def _is_comment_draft_reply(message, bot_id: int) -> bool:
+    parent = getattr(message, "reply_to_message", None)
+    if not parent:
+        return False
+    if not parent.from_user or parent.from_user.id != bot_id:
+        return False
+    ptext = parent.text or parent.caption or ""
+    return "ЧЕРНОВИК" in ptext and bool(_COMMENT_LINK_RE.search(ptext))
+
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Global error handler. Retries on transient errors instead of crashing."""
@@ -185,6 +202,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = f"{caption}\n\n[Пользователь отправил {desc}. Файл: {file_path}]" if caption else f"[Пользователь отправил {desc}. Файл: {file_path}]"
 
     if not text:
+        return
+
+    # Reply to a comment-digest block = a comment to post, not a query.
+    # Skip Claude; the mac-side poller posts it and confirms with "✅ Запостил".
+    if _is_comment_draft_reply(message, context.bot.id):
+        await message.reply_text("📝 Принял, запощу комментом в течение пары минут.")
         return
 
     # Persistent typing indicator (refreshes every 4s)
