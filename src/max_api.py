@@ -1,18 +1,43 @@
 """Minimal async HTTP client for MAX Bot API.
 
 Auth: header `Authorization: <token>` (no "Bearer" prefix).
-Base: https://botapi.max.ru
+Base: https://botapi.max.ru, overridable via MAX_API_BASE.
+
+MAX is migrating clients to platform-api2.max.ru, which serves a chain rooted
+at the Minitsifry CA that is absent from the default trust stores. Point
+MAX_CA_BUNDLE at a PEM holding that root + sub CA to trust it for this client
+only, instead of installing the root system-wide.
+
+NOTE: the Minitsifry sub CA expires 2027-03-06. When MAX reissues it, a pinned
+bundle goes stale and every request starts failing TLS — refresh the PEM before
+that date.
 """
 import logging
+import os
 import httpx
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://botapi.max.ru"
+BASE_URL = os.getenv("MAX_API_BASE", "https://botapi.max.ru").rstrip("/")
+CA_BUNDLE = os.getenv("MAX_CA_BUNDLE", "").strip()
 
 
 class MaxAPIError(Exception):
     pass
+
+
+def _verify_option():
+    """TLS verification setting: a pinned CA bundle, or the system default.
+
+    A configured-but-missing bundle is fatal on purpose — silently falling back
+    to the system store would look fine until the day it isn't.
+    """
+    if not CA_BUNDLE:
+        return True
+    if not os.path.isfile(CA_BUNDLE):
+        raise MaxAPIError(f"MAX_CA_BUNDLE points at a missing file: {CA_BUNDLE}")
+    logger.info(f"MAX API: pinned CA bundle {CA_BUNDLE}")
+    return CA_BUNDLE
 
 
 class MaxAPI:
@@ -20,6 +45,7 @@ class MaxAPI:
         self.token = token
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(70.0, connect=10.0),
+            verify=_verify_option(),
             headers={
                 "Authorization": token,
                 "User-Agent": "maxos-bot/1.0",
@@ -41,7 +67,17 @@ class MaxAPI:
             raise MaxAPIError(f"HTTP error {method} {path}: {e}") from e
         if r.status_code >= 400:
             raise MaxAPIError(f"{method} {path} -> {r.status_code}: {r.text[:500]}")
-        return r.json() if r.text else {}
+        if not r.text:
+            return {}
+        try:
+            return r.json()
+        except ValueError as e:
+            # MAX occasionally answers 2xx with an HTML error page from its edge;
+            # surface it as a MaxAPIError so callers see the body, not a bare
+            # "Expecting value: line 1 column 1".
+            raise MaxAPIError(
+                f"{method} {path} -> {r.status_code}, non-JSON body: {r.text[:500]}"
+            ) from e
 
     async def get_me(self) -> dict:
         return await self._request("GET", "/me")
