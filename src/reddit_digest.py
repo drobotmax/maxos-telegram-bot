@@ -20,6 +20,7 @@ import httpx
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
 from .config import (
+    hub_dest,
     BOT_TOKEN,
     ADMIN_TELEGRAM_ID,
     TIMEZONE,
@@ -428,18 +429,11 @@ async def send_reddit_digest():
     """Scheduled job: send Reddit digest to admin."""
     text, keyboard = await build_reddit_digest()
     bot = Bot(token=BOT_TOKEN)
+    dest = hub_dest("digest")
     if len(text) <= 4096:
-        await bot.send_message(
-            chat_id=ADMIN_TELEGRAM_ID,
-            text=text,
-            reply_markup=keyboard,
-        )
+        await bot.send_message(text=text, reply_markup=keyboard, **dest)
     else:
         for i in range(0, len(text), 4096):
             chunk = text[i : i + 4096]
             markup = keyboard if i + 4096 >= len(text) else None
-            await bot.send_message(
-                chat_id=ADMIN_TELEGRAM_ID,
-                text=chunk,
-                reply_markup=markup,
-            )
+            await bot.send_message(text=chunk, reply_markup=markup, **dest)

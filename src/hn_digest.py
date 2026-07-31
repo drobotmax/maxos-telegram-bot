@@ -16,6 +16,7 @@ import httpx
 from .config import (
     BOT_TOKEN,
     ADMIN_TELEGRAM_ID,
+    hub_dest,
     TIMEZONE,
     RESEARCH_DEDUP_FILE,
     RESEARCH_DEDUP_DAYS,
@@ -333,8 +334,6 @@ async def send_hn_digest():
     from telegram import Bot
     text = await build_hn_digest()
     bot = Bot(token=BOT_TOKEN)
+    dest = hub_dest("digest")
     for i in range(0, len(text), 4096):
-        await bot.send_message(
-            chat_id=ADMIN_TELEGRAM_ID,
-            text=text[i:i + 4096],
-        )
+        await bot.send_message(text=text[i:i + 4096], **dest)

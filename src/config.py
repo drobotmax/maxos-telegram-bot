@@ -30,6 +30,27 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 ADMIN_TELEGRAM_ID = int(os.getenv("ADMIN_TELEGRAM_ID", "0"))
 GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID", "0"))
 
+# --- MaxOS Hub (forum supergroup, one topic per stream) ---
+# Scheduled output goes to a topic; the DM stays reserved for live conversation.
+# Coordinates come from env rather than ~/MaxOS/store/tg-hub.json because the VPS
+# carries only a sparse clone of MaxOS and would not have that file.
+HUB_CHAT_ID = int(os.getenv("HUB_CHAT_ID", "0")) or GROUP_CHAT_ID
+try:
+    HUB_TOPICS: dict[str, int] = {
+        k: int(v) for k, v in json.loads(os.getenv("HUB_TOPICS", "{}")).items()
+    }
+except ValueError:
+    HUB_TOPICS = {}
+
+
+def hub_dest(topic: str) -> dict:
+    """sendMessage kwargs for a hub topic; falls back to the DM if unconfigured."""
+    thread = HUB_TOPICS.get(topic) or HUB_TOPICS.get("misc")
+    if not (HUB_CHAT_ID and thread):
+        return {"chat_id": ADMIN_TELEGRAM_ID}
+    return {"chat_id": HUB_CHAT_ID, "message_thread_id": thread}
+
+
 # --- MAX messenger ---
 # Bot token from dev.max.ru (Authorization header, no "Bearer" prefix)
 MAX_BOT_TOKEN = os.getenv("MAX_BOT_TOKEN", "")

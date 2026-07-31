@@ -19,6 +19,7 @@ from .config import (
     REDDIT_DIGEST_HOUR,
     REDDIT_DIGEST_MINUTE,
     SKIP_INBOX_GROUP_NAMES,
+    hub_dest,
 )
 from .claude_worker import process_scheduled
 from .heartbeat import capture_morning_plan, load_state
@@ -41,16 +42,15 @@ def _get_bot() -> Bot:
     return _bot
 
 
-async def _send_to_admin(text: str):
+async def _send_to_admin(text: str, topic: str = "misc"):
+    """Deliver a scheduled message to its MaxOS Hub topic (DM if unconfigured)."""
     if not ADMIN_TELEGRAM_ID:
         logger.warning("ADMIN_TELEGRAM_ID not set, skipping scheduled message")
         return
     bot = _get_bot()
+    dest = hub_dest(topic)
     for i in range(0, len(text), 4096):
-        await bot.send_message(
-            chat_id=ADMIN_TELEGRAM_ID,
-            text=text[i : i + 4096],
-        )
+        await bot.send_message(text=text[i : i + 4096], **dest)
 
 
 # --- Data pre-fetch helpers ---
@@ -323,7 +323,7 @@ async def morning_checkin():
 async def daily_report():
     logger.info("Running daily report")
     result = await build_daily_report(chat_id=ADMIN_TELEGRAM_ID)
-    await _send_to_admin(result)
+    await _send_to_admin(result, topic="morning")
 
 
 # --- Research Digest (HN + Lobsters, replaces old WebSearch approach) ---
